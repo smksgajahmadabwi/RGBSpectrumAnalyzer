@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>RGB Spectrum Analyzer</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      margin: 0;
+      background-color: #111;
+      color: white;
+      font-family: 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+    .container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+    }
+    .video-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1); /* Mirror video by default */
+    }
+    #graphOverlay {
+      position: absolute;
+      bottom: 20px;
+      left: 10px;
+      right: 10px;
+      height: 30%;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(5px);
+      border-radius: 10px;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+    #spectrumChart {
+      width: 100%;
+      height: 100%;
+    }
+    canvas#hiddenCanvas {
+      display: none;
+    }
+    #header {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(10px);
+      padding: 12px 25px;
+      border-radius: 30px;
+      text-align: center;
+      z-index: 100;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      max-width: 90%;
+    }
+    .school-name {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      background: linear-gradient(90deg, #ff0000, #00ff00, #0000ff);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      margin-bottom: 3px;
+    }
+    .department {
+      font-size: 14px;
+      font-weight: 400;
+      color: rgba(255, 255, 255, 0.8);
+      margin-bottom: 5px;
+    }
+    .app-title {
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      background: linear-gradient(90deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      margin: 5px 0;
+    }
+    .creator {
+      font-size: 12px;
+      font-weight: 300;
+      color: rgba(255, 255, 255, 0.6);
+      font-style: italic;
+    }
+    #controls {
+      position: absolute;
+      top: 120px;
+      right: 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 100;
+    }
+    .control-btn {
+      background: rgba(0, 0, 0, 0.6);
+      color: white;
+      border: none;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      backdrop-filter: blur(5px);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+    }
+    .control-btn:hover {
+      background: rgba(255, 255, 255, 0.3);
+      transform: scale(1.1);
+    }
+    .control-btn svg {
+      width: 24px;
+      height: 24px;
+    }
+    #status {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.7);
+      padding: 15px 25px;
+      border-radius: 10px;
+      font-size: 16px;
+      z-index: 100;
+      text-align: center;
+    }
+    #flipBtn {
+      position: absolute;
+      bottom: calc(30% + 30px);
+      right: 15px;
+      z-index: 100;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="video-container">
+    <video id="video" autoplay muted playsinline></video>
+    
+    <div id="header">
+      <div class="school-name">SMK GAJAH MADA BANYUWANGI</div>
+      <div class="department">TEKNIK ELEKTRONIKA - TEKNIK AUDIO VIDEO</div>
+      <div class="app-title">RGB SPECTRUM ANALYZER</div>
+      <div class="creator">Oleh Abdul Shobir, ST</div>
+    </div>
+    
+    <div id="graphOverlay">
+      <canvas id="spectrumChart"></canvas>
+    </div>
+    
+    <div id="controls">
+      <button class="control-btn" id="backCameraBtn" title="Kamera Belakang">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <path d="M5 7h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z"></path>
+          <path d="M19 7h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z"></path>
+        </svg>
+      </button>
+      <button class="control-btn" id="frontCameraBtn" title="Kamera Depan">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+          <circle cx="12" cy="13" r="4"></circle>
+        </svg>
+      </button>
+      <button class="control-btn" id="startBtn" title="Mulai Analisis">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="16"></line>
+          <line x1="8" y1="12" x2="16" y2="12"></line>
+        </svg>
+      </button>
+    </div>
+    
+    <button class="control-btn" id="flipBtn" title="Balik Kamera">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <path d="M12 20h9M16 16l4 4-4 4M3 4h9m0 0l4 4M12 4l-4 4"></path>
+      </svg>
+    </button>
+    
+    <div id="status">Menunggu akses kamera...</div>
+  </div>
+</div>
+
+<canvas id="hiddenCanvas"></canvas>
+
+<script>
+  // Elements
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('hiddenCanvas');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const chartCanvas = document.getElementById('spectrumChart');
+  const startBtn = document.getElementById('startBtn');
+  const backCameraBtn = document.getElementById('backCameraBtn');
+  const frontCameraBtn = document.getElementById('frontCameraBtn');
+  const flipBtn = document.getElementById('flipBtn');
+  const statusDisplay = document.getElementById('status');
+  
+  // Variables
+  let spectrumChart;
+  let isRunning = false;
+  let animationId;
+  let currentFacingMode = 'environment'; // Default to back camera
+  let isFlipped = false;
+
+  // Initialize chart
+  function initChart() {
+    const dummyData = Array.from({ length: 100 }, () => 0);
+    spectrumChart = new Chart(chartCanvas, {
+      type: 'line',
+      data: {
+        labels: dummyData.map((_, i) => i),
+        datasets: [
+          { 
+            label: 'Red', 
+            data: [...dummyData], 
+            borderColor: 'rgba(255, 50, 50, 0.8)', 
+            backgroundColor: 'rgba(255, 50, 50, 0.2)',
+            fill: true,
+            borderWidth: 1.5,
+            tension: 0.1,
+            pointRadius: 0
+          },
+          { 
+            label: 'Green', 
+            data: [...dummyData], 
+            borderColor: 'rgba(50, 255, 50, 0.8)',
+            backgroundColor: 'rgba(50, 255, 50, 0.2)',
+            fill: true,
+            borderWidth: 1.5,
+            tension: 0.1,
+            pointRadius: 0
+          },
+          { 
+            label: 'Blue', 
+            data: [...dummyData], 
+            borderColor: 'rgba(50, 50, 255, 0.8)',
+            backgroundColor: 'rgba(50, 50, 255, 0.2)',
+            fill: true,
+            borderWidth: 1.5,
+            tension: 0.1,
+            pointRadius: 0
+          }
+        ]
+      },
+      options: {
+        animation: false,
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { 
+          legend: { 
+            position: 'top',
+            labels: { 
+              color: '#fff',
+              font: { size: 10 },
+              boxWidth: 12,
+              padding: 10,
+              usePointStyle: true
+            } 
+          } 
+        },
+        scales: {
+          x: { 
+            display: false,
+            grid: { display: false }
+          },
+          y: {
+            beginAtZero: true,
+            max: 255,
+            grid: {
+              color: 'rgba(255, 255, 255, 0.1)'
+            },
+            ticks: { 
+              color: '#fff',
+              font: { size: 8 }
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // Start camera with specified facing mode
+  async function startCamera(facingMode) {
+    try {
+      stopAnalysis();
+      statusDisplay.textContent = "Mengakses kamera...";
+      statusDisplay.style.display = 'block';
+      
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: {
+          facingMode: facingMode,
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
+      });
+      
+      // Stop any existing stream
+      if (video.srcObject) {
+        video.srcObject.getTracks().forEach(track => track.stop());
+      }
+      
+      video.srcObject = stream;
+      currentFacingMode = facingMode;
+      
+      // Update button states
+      if (facingMode === 'environment') {
+        backCameraBtn.style.background = 'rgba(255, 255, 255, 0.3)';
+        frontCameraBtn.style.background = 'rgba(0, 0, 0, 0.6)';
+      } else {
+        frontCameraBtn.style.background = 'rgba(255, 255, 255, 0.3)';
+        backCameraBtn.style.background = 'rgba(0, 0, 0, 0.6)';
+      }
+      
+      video.onloadedmetadata = () => {
+        video.play();
+        canvas.width = video.videoWidth;
+        canvas.height = 1;
+        statusDisplay.style.display = 'none';
+        
+        if (!spectrumChart) {
+          initChart();
+        }
+        
+        // Update flip state based on camera
+        isFlipped = (facingMode === 'user');
+        video.style.transform = isFlipped ? 'scaleX(1)' : 'scaleX(-1)';
+      };
+    } catch (err) {
+      statusDisplay.textContent = "Gagal mengakses kamera: " + err.message;
+      console.error("Camera error:", err);
+    }
+  }
+
+  // Start/stop analysis
+  function toggleAnalysis() {
+    if (!isRunning) {
+      isRunning = true;
+      startBtn.innerHTML = `
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <circle cx="12" cy="12" r="10"></circle>
+          <rect x="6" y="6" width="4" height="12"></rect>
+          <rect x="14" y="6" width="4" height="12"></rect>
+        </svg>
+      `;
+      updateSpectrum();
+    } else {
+      stopAnalysis();
+    }
+  }
+
+  // Update spectrum data
+  function updateSpectrum() {
+    if (!isRunning) return;
+    
+    if (video.readyState < 2) {
+      animationId = requestAnimationFrame(updateSpectrum);
+      return;
+    }
+
+    // Sample center horizontal line
+    ctx.drawImage(video, 0, video.videoHeight * 0.5, video.videoWidth, 1, 0, 0, canvas.width, 1);
+    const imageData = ctx.getImageData(0, 0, canvas.width, 1).data;
+
+    const red = [], green = [], blue = [];
+    const step = Math.ceil(imageData.length / (4 * 100)); // Sample 100 points
+    
+    for (let i = 0; i < imageData.length; i += 4 * step) {
+      red.push(imageData[i]);
+      green.push(imageData[i + 1]);
+      blue.push(imageData[i + 2]);
+    }
+
+    // Update chart data
+    spectrumChart.data.datasets[0].data = red;
+    spectrumChart.data.datasets[1].data = green;
+    spectrumChart.data.datasets[2].data = blue;
+    spectrumChart.update();
+
+    animationId = requestAnimationFrame(updateSpectrum);
+  }
+
+  // Stop analysis
+  function stopAnalysis() {
+    isRunning = false;
+    cancelAnimationFrame(animationId);
+    
+    startBtn.innerHTML = `
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="12" y1="8" x2="12" y2="16"></line>
+        <line x1="8" y1="12" x2="16" y2="12"></line>
+      </svg>
+    `;
+  }
+
+  // Flip camera view
+  function flipCamera() {
+    isFlipped = !isFlipped;
+    video.style.transform = isFlipped ? 'scaleX(1)' : 'scaleX(-1)';
+  }
+
+  // Event listeners
+  startBtn.addEventListener('click', toggleAnalysis);
+  backCameraBtn.addEventListener('click', () => startCamera('environment'));
+  frontCameraBtn.addEventListener('click', () => startCamera('user'));
+  flipBtn.addEventListener('click', flipCamera);
+
+  // Initialize
+  window.addEventListener('load', () => {
+    initChart();
+    startCamera('environment'); // Start with back camera by default
+  });
+  
+  // Handle orientation change
+  window.addEventListener('resize', () => {
+    if (spectrumChart) {
+      spectrumChart.resize();
+    }
+  });
+</script>
+
+</body>
+</html>
